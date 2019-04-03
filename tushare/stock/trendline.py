@@ -69,6 +69,79 @@ def _ema(series, n):
     return series.ewm(ignore_na=False, span=n, min_periods=0, adjust=False).mean()
 
 
+def dma(df, n=10, m=50, k=10):
+    """
+    平均线差	DMA(10,50,10)
+    DDD=MA（N1）-MA(N2)
+    AMA= MA（DDD,M）
+    其中N1表示短期天数，N2表示长期天数，M表示AMA的天数
+    """
+    _dma = pd.DataFrame()
+    _dma['date'] = df['date']
+    _dma['ddd'] = _ma(df.close, n) - _ma(df.close, m)
+    _dma['ama'] = _ma(_dma.ddd, k)
+    return _dma
+
+
+def dmi(df, n=14, m=6):
+    """
+    # 通达信计算方法
+    TRZ: = EMA(MAX(MAX(HIGH - LOW, ABS(HIGH - REF(CLOSE, 1))), ABS(REF(CLOSE, 1) - LOW)), 7);
+    HD: = HIGH - REF(HIGH, 1);
+    LD: = REF(LOW, 1) - LOW;
+    DMP: = EMA(IF(HD > 0 AND HD > LD, HD, 0), 7);
+    DMM: = EMA(IF(LD > 0 AND LD > HD, LD, 0), 7);
+    PDI: DMP * 100 / TRZ;
+    MDI: DMM * 100 / TRZ;
+    ADX: EMA(ABS(MDI - PDI) / (MDI + PDI) * 100, 7);
+    ADXR: EMA(ADX, 7);
+    tr = pd.Series(np.vstack([df.high - df.low, (df.high - df.close.shift()).abs(), (df.low - df.close.shift()).abs()]).max(axis=0))
+    trz = _ema(tr, n)
+    _m = pd.DataFrame()
+    _m['hd'] = df.high - df.high.shift()
+    _m['ld'] = df.low.shift() - df.low
+    _m['mp'] = _m.apply(lambda x: x.hd if x.hd > 0 and x.hd > x.ld else 0, axis=1)
+    _m['mm'] = _m.apply(lambda x: x.ld if x.ld > 0 and x.hd < x.ld else 0, axis=1)
+    _m['dmp'] = _ema(_m.mp, n)
+    _m['dmm'] = _ema(_m.mm, n)
+    _dmi = pd.DataFrame()
+    _dmi['date'] = df.date
+    _dmi['pdi'] = _m.dmp * 100 / trz
+    _dmi['mdi'] = _m.dmm * 100 / trz
+    _dmi['adx'] = _ema((_dmi.mdi - _dmi.pdi).abs() / (_dmi.mdi + _dmi.pdi) * 100, m)
+    _dmi['adxr'] = _ema(_dmi.adx, m)
+    return _dmi
+    """
+    """
+    # 同花顺计算方式
+    TR := SUM(MAX(MAX(HIGH-LOW,ABS(HIGH-REF(CLOSE,1))),ABS(LOW-REF(CLOSE,1))),N);
+    HD: = HIGH - REF(HIGH, 1);
+    LD: = REF(LOW, 1) - LOW;
+    DMP:= SUM(IF(HD>0 AND HD>LD,HD,0),N);
+    DMM:= SUM(IF(LD>0 AND LD>HD,LD,0),N);
+    ＋DI: DMP*100/TR;
+    －DI: DMM*100/TR;
+    ADX: MA(ABS(－DI-＋DI)/(－DI+＋DI)*100,M);
+    ADXR:(ADX+REF(ADX,M))/2;
+    """
+    tr = pd.Series(np.vstack([df.high - df.low, (df.high - df.close.shift()).abs(), (df.low - df.close.shift()).abs()]).max(axis=0))
+    trz = tr.rolling(n).sum()
+    _m = pd.DataFrame()
+    _m['hd'] = df.high - df.high.shift()
+    _m['ld'] = df.low.shift() - df.low
+    _m['mp'] = _m.apply(lambda x: x.hd if x.hd > 0 and x.hd > x.ld else 0, axis=1)
+    _m['mm'] = _m.apply(lambda x: x.ld if x.ld > 0 and x.hd < x.ld else 0, axis=1)
+    _m['dmp'] =_m.mp.rolling(n).sum()
+    _m['dmm'] = _m.mm.rolling(n).sum()
+    _dmi = pd.DataFrame()
+    _dmi['date'] = df.date
+    _dmi['pdi'] = _m.dmp * 100 / trz
+    _dmi['mdi'] = _m.dmm * 100 / trz
+    _dmi['adx'] = _ma((_dmi.mdi - _dmi.pdi).abs() / (_dmi.mdi + _dmi.pdi) * 100, m)
+    _dmi['adxr'] = (_dmi.adx + _dmi.adx.shift(m)) / 2
+    return _dmi
+
+
 def macd(df, n=12, m=26, k=9):
     """
     平滑异同移动平均线(Moving Average Convergence Divergence)
@@ -995,6 +1068,8 @@ if __name__ == "__main__":
     # emaf = ema(data)
     # print(ema(data, 5))
     # print(join_frame(data, emaf))
+    # print(dma(data))
+    print(dmi(data))
     # print(macd(data))
     # print(kdj(data))
     # print(vrsi(data, 6))
@@ -1036,7 +1111,7 @@ if __name__ == "__main__":
     # print(mi(data))
     # print(micd(data))
     # print(rc(data))
-    print(rccd(data))
+    # print(rccd(data))
     # print(srmi(data))
     # print(dptb(data))
     # print(jdqs(data))
