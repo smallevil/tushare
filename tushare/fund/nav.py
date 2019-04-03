@@ -64,14 +64,14 @@ def get_nav_open(fund_type='all'):
         limit_cnt = int(nums/pages)+1   # 每次取的数量
         fund_dfs = []
         for page in range(1, pages+1):
-            fund_dfs = _parse_fund_data(ct.SINA_NAV_DATA_URL %
+            fund_dfs.append(_parse_fund_data(ct.SINA_NAV_DATA_URL %
                                        (ct.P_TYPE['http'], ct.DOMAINS['vsf'],
                                         ct.NAV_OPEN_KEY[fund_type],
                                         ct.NAV_OPEN_API[fund_type],
                                         page,
                                         limit_cnt,
                                         ct.NAV_OPEN_T2[fund_type],
-                                        ct.NAV_OPEN_T3))
+                                        ct.NAV_OPEN_T3)))
 
         return pd.concat(fund_dfs, ignore_index=True)
 
