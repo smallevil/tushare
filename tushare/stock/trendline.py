@@ -181,7 +181,7 @@ def kdj(df, n=9):
 
 def rsi(df, n=6):
     """
-    相对强弱指标（Relative Strength Index，简称RSI
+    相对强弱指标（Relative Strength Index，简称RSI n=6、12和24
     LC= REF(CLOSE,1)
     RSI=SMA(MAX(CLOSE-LC,0),N,1)/SMA(ABS(CLOSE-LC),N1,1)×100
     SMA（C,N,M）=M/N×今日收盘价+(N-M)/N×昨日SMA（N）
@@ -189,15 +189,33 @@ def rsi(df, n=6):
     # pd.set_option('display.max_rows', 1000)
     _rsi = pd.DataFrame()
     _rsi['date'] = df['date']
-    px = df.close - df.close.shift(1)
+    px = df.close - df.close.shift()
     px[px < 0] = 0
-    _rsi['rsi'] = sma(px, n) / sma((df['close'] - df['close'].shift(1)).abs(), n) * 100
+    _rsi['rsi'] = sma(px, n) / sma((df['close'] - df['close'].shift()).abs(), n) * 100
     # def tmax(x):
     #     if x < 0:
     #         x = 0
     #     return x
     # _rsi['rsi'] = sma((df['close'] - df['close'].shift(1)).apply(tmax), n) / sma((df['close'] - df['close'].shift(1)).abs(), n) * 100
     return _rsi
+
+
+def stochrsi(df, n=12):
+    """
+    随机强弱指标（Relative Strength Index，简称RSI n=6、12和24
+    Stochastic Relative Strength Index（Stoch RSI）
+    https://zhuanlan.zhihu.com/p/55070261
+    """
+    _stochrsi = pd.DataFrame()
+    _stochrsi['date'] = df.date
+    px = df.close - df.close.shift()
+    px[px < 0] = 0
+    rsi = sma(px, n) / sma((df.close - df.close.shift()).abs(), n) * 100
+    lrsi = rsi.rolling(n).min()
+    _stochrsi['stochrsi'] = (rsi - lrsi) / (rsi.rolling(n).max() - lrsi) * 100
+    _stochrsi['fastk'] = sma(_stochrsi.stochrsi, 3)  # or _ma ??????
+    _stochrsi['fastd'] = sma(_stochrsi.fastk, 3)     # or _ma ?????？
+    return _stochrsi
 
 
 def vrsi(df, n=6):
@@ -357,6 +375,20 @@ def dpo(df, n=20, m=6):
     _dpo['dpo'] = df.close - _ma(df.close, int(n / 2 + 1))
     _dpo['dopma'] = _ma(_dpo.dpo, m)
     return _dpo
+
+
+def tema(df, n=20):
+    """
+    h 一般取20或60
+    TEMA三重指数移动平均线是帕特里克马洛于1994年开发的一个更平滑更快速的移动均线
+    """
+    _tema = pd.DataFrame()
+    _tema['date'] = df.date
+    a1 = _ema(df.close, n)
+    a2 = _ema(a1, n)
+    a3 = _ema(a2, n)
+    _tema['tema'] = (3 * a1 - 3 * a2 + a3) / _ma(df.close, n)
+    return _tema
 
 
 def trix(df, n=12, m=20):
@@ -826,7 +858,7 @@ def rc(df, n=50):
     _rc = pd.DataFrame()
     _rc['date'] = df.date
     _rc['rc'] = df.close / df.close.shift(n) * 100
-    _rc['arc'] = sma(_rc.rc.shift(1), n)
+    _rc['arc'] = sma(_rc.rc.shift(), n)
     return _rc
 
 
@@ -1046,6 +1078,57 @@ def down_n(df):
     return _down
 
 
+def elder(df, n=20):
+    """
+    艾达透视因子 观察多控指标
+    A = H - EMA(C, N)
+    B = L - EMA(C, N)
+    Elder = (A-B)/C
+    """
+    _elder = pd.DataFrame()
+    _elder['date'] = df.date
+    a = df.high - _ema(df.close, n)
+    b = df.low - _ema(df.close, n)
+    _elder['elder'] = (a - b) / df.close
+    return _elder
+
+
+""" ---------------------------------------  趋势性因子  -------------------------------------------"""
+
+
+def acd(df, n=6):
+    """
+    收集派发因子 n=6或20 累积/派发线（Accumulation/Distribution Line，A/D或AC）
+    ACD指标将市场分为两股收集(买入)及派发(估出)的力量
+    """
+    _acd = pd.DataFrame()
+    _acd['date'] = df.date
+    _m = pd.DataFrame()
+    _m['dif'] = df.close - df.close.shift()
+    _m['close'] = df.close
+    _m['low'] = np.minimum(df.low, df.low.shift())
+    _m['high'] = np.maximum(df.high, df.high.shift())
+    _m['cd'] = _m.apply(lambda x: x.close - x.low if x.dif > 0 else (x.close - x.high if x.dif < 0 else 0), axis=1)
+    _acd['acd'] = _m.cd.rolling(n).sum()
+    return _acd
+
+
+def cop(df, n=11, m=14, h=10):
+    """
+    估波指标(Coppock
+    Curve)又称“估波曲线”，通过计算月度价格的变化速率的加权平均值来测量市场的动量，属于长线指标。
+
+    估波指标由Edwin
+    Sedgwick
+    Coppock于1962年提出，主要用于判断牛市的到来。该指标只能产生买进讯号。依估波指标买进股票后，应另外寻求其他指标来辅助卖出讯号。
+    """
+    _cop = pd.DataFrame()
+    _cop['date'] = df.date
+    rc = (df.close - df.close.shift(n)) / df.close.shift(n) * 100 + (df.close - df.close.shift(m)) / df.close.shift(m) * 100
+    _cop['cop'] = _ema(rc, h)
+    return _cop
+
+
 def join_frame(d1, d2, column='date'):
     # 将两个DataFrame 按照datetime合并
     return d1.join(d2.set_index(column), on=column)
@@ -1054,7 +1137,7 @@ def join_frame(d1, d2, column='date'):
 if __name__ == "__main__":
     import tushare as ts
     # data = ts.get_k_data("000063", start="2017-05-01")
-    data = ts.get_k_data("601138", start="2017-05-01")
+    data = ts.get_k_data("002264", start="2017-05-01")
     # print(data)
     # maf = ma(data, n=[5, 10, 20])
     # 将均线合并到data中
@@ -1069,7 +1152,7 @@ if __name__ == "__main__":
     # print(ema(data, 5))
     # print(join_frame(data, emaf))
     # print(dma(data))
-    print(dmi(data))
+    # print(dmi(data))
     # print(macd(data))
     # print(kdj(data))
     # print(vrsi(data, 6))
@@ -1077,6 +1160,7 @@ if __name__ == "__main__":
     # print(bbiboll(data))
     # print(wr(data))
     # print(bias(data))
+    # print(rsi(data))
     # print(asi(data))
     # print(vr_rate(data))
     # print(vr(data))
@@ -1126,3 +1210,10 @@ if __name__ == "__main__":
     # print(cvlt(data))
     # print(up_n(data))
     # print(down_n(data))
+    # --------------------------------- 以下函数没有同花顺验证,慎重使用 --------------------------------
+    # print(elder(data))
+    # print(acd(data))
+    # print(cop(data))
+    # print(tema(data, n=20))
+    print(stochrsi(data))
+    # print(rsi(data))
